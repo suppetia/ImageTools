@@ -3,7 +3,7 @@ move or copy images in directories named by the dates the pictures were taken
 
 Christopher Mertens
 2019-10-20
-version: 0.1.1
+version: 0.1.2
 """
 
 import glob
@@ -13,7 +13,7 @@ import sys
 from PIL import Image
 
 
-def sort_by_date_taken(src_dir, dst_dir=None, file_operation='cp', file_name_extensions=['JPG', 'jpg'], **kwargs):
+def sort_by_date_taken(src_dir, dst_dir=None, file_operation='cp', file_name_extensions=['jpg'], **kwargs):
     """
     copy images into directories named by the date when the picture was taken
     :param src_dir: directory to copy the files from
@@ -26,7 +26,7 @@ def sort_by_date_taken(src_dir, dst_dir=None, file_operation='cp', file_name_ext
         """
         get date when picture was taken from exif metadata
         :param path: path of the picture
-        :return: DateTimeOriginal (exif id 26867)
+        :return: DateTimeOriginal (exif id 36867)
         """
         return Image.open(path)._getexif()[36867]
 
@@ -51,8 +51,12 @@ def sort_by_date_taken(src_dir, dst_dir=None, file_operation='cp', file_name_ext
     if dst_dir is None:
         dst_dir = src_dir
     # find all files with specified file name extension
+    files = []
     for file_name_extension in file_name_extensions:
-        files = glob.glob(src_dir + "\\*." + file_name_extension)
+        if 'read_recursive' in kwargs.keys() and kwargs['read_recursive']:
+            files += glob.glob(src_dir + "\\**\\*." + file_name_extension, recursive=True)
+        else:
+            files += glob.glob(src_dir + "\\*." + file_name_extension)
     print("copying " + str(len(files)) + " files from " + src_dir + " to " + dst_dir + '\n')
     for num, file in enumerate(files):
         # create the name of directory structure
@@ -81,5 +85,5 @@ def sort_by_date_taken(src_dir, dst_dir=None, file_operation='cp', file_name_ext
 
 if __name__ == '__main__':
     # enter the src dir to sort
-    src_dir = os.path.abspath("test_images")
-    sort_by_date_taken(src_dir, file_operation='cp', dir_structure='ymd')
+    src_dir = os.path.abspath("test_images\\test_sorted")
+    sort_by_date_taken(src_dir, file_operation='mv', dir_structure='ymd', read_recursive=True)
