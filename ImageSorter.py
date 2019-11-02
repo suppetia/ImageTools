@@ -3,11 +3,12 @@ move or copy images in directories named by the dates the pictures were taken
 
 Christopher Mertens
 2019-10-20
-version: 0.2.2
+version: 0.3.1
 """
 
 import glob
 import os
+import datetime
 import shutil
 import sys
 import argparse
@@ -31,21 +32,32 @@ def sort_by_date_taken(src_dir, dst_dir=None, file_operation='cp', filename_exte
         """
         return Image.open(path)._getexif()[36867]
 
-    def _create_dir_name(date, dir_structure='ymd'):
+    def _get_date_modified(path):
+        """
+        get date when the file was modified for the last time (for images/videos this equals the date when the file was taken)
+        :param path: path of the file
+        :return: date of last file change
+        """
+        return str(datetime.datetime.fromtimestamp(os.path.getmtime(path)))
+
+    def _create_dir_name(date, dir_structure='ymd', is_exif=True):
         """
         create the directory path
         :param date: exif data of the picture
         :param dir_structure: structure of dir (example: 'ymd' - 'YYYY\YYYY_MM\YYYY_MM_DD; 'yd' - YYYY\YYYY_MM_DD)
         :return: relative path/name of the directory
         """
-        date_splitted = date.split(' ')[0].split(':')
+        if is_exif:
+            date_split = date.split(' ')[0].split(':')
+        else:
+            date_split = date.split(' ')[0].split('-')
         dir_name = '\\'
         if 'y' in dir_structure:
-            dir_name += date_splitted[0] + '\\'
+            dir_name += date_split[0] + '\\'
         if 'm' in dir_structure:
-            dir_name += '_'.join(d for d in date_splitted[:2]) + '\\'
+            dir_name += '_'.join(d for d in date_split[:2]) + '\\'
         if 'd' in dir_structure:
-            dir_name += '_'.join(d for d in date_splitted[:3]) + '\\'
+            dir_name += '_'.join(d for d in date_split[:3]) + '\\'
         return dir_name
 
     # set dst_dir to src_dir if not specified
@@ -61,16 +73,22 @@ def sort_by_date_taken(src_dir, dst_dir=None, file_operation='cp', filename_exte
     print("copying " + str(len(files)) + " files from " + src_dir + " to " + dst_dir + '\n')
     for num, file in enumerate(files):
         # create the name of directory structure
-        if 'dir_structure' in kwargs.keys():
-            dir_name = _create_dir_name(_get_date_taken(file), dir_structure=kwargs['dir_structure'])
-        else:
-            dir_name = _create_dir_name(_get_date_taken(file))
+        if file.split('.')[-1].lower() in ["jpg", "jpeg", "jpe", "jfif", "tiff", "tif"]:  # if exif data is stored in file header
+            if 'dir_structure' in kwargs.keys():
+                dir_name = _create_dir_name(_get_date_taken(file), dir_structure=kwargs['dir_structure'])
+            else:
+                dir_name = _create_dir_name(_get_date_taken(file))
+        else:  # use date of change to determine creation
+            if 'dir_structure' in kwargs.keys():
+                dir_name = _create_dir_name(_get_date_modified(file), dir_structure=kwargs['dir_structure'], is_exif=False)
+            else:
+                dir_name = _create_dir_name(_get_date_modified(file), is_exif=False)
         date_dir = dst_dir + "\\" + dir_name + "\\"
         # create new date directory if it doesn't exists
         os.makedirs(date_dir, exist_ok=True)
         if file_operation in ['copy', 'cp']:
             # copy file to new dir
-            shutil.copy(file, date_dir + file.split("\\")[-1])
+            shutil.copy2(file, date_dir + file.split("\\")[-1])  # also copies files metadata
         elif file_operation in ['move', 'mv']:
             # move file to new dir
             shutil.move(file, date_dir + file.split("\\")[-1])
@@ -87,7 +105,8 @@ def sort_by_date_taken(src_dir, dst_dir=None, file_operation='cp', filename_exte
 if __name__ == '__main__':
 
     # parse command prompt arguments
-    parser = argparse.ArgumentParser(description="sort images by date taken")
+    parser = argparse.ArgumentParser(description=
+                                     "sort images by date taken or last modification date (if there is no exif data)")
 
     parser.add_argument('--file_operation', action='store', default='cp')
     parser.add_argument('--filename_extensions', '-ext', action='store', nargs='*', default=['jpg'])
@@ -114,8 +133,9 @@ if __name__ == '__main__':
                        filename_extensions=args.filename_extensions,
                        dir_structure=args.dir_structure, read_recursive=args.read_recursive)
 
-    """ uncomment for executing without command prompt
+    # uncomment for executing without command prompt 
+    """
     # enter the src dir to sort
-    src_dir = os.path.abspath("test_images\\test_sorted")
-    sort_by_date_taken(src_dir, file_operation='mv', dir_structure='ymd', read_recursive=True)
+    src_dir = os.path.abspath("test_images")
+    sort_by_date_taken(src_dir, file_operation='cp', dir_structure='ymd', read_recursive=False, filename_extensions=['jpg', 'mov'])
     """
